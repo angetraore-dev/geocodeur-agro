@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Environnement virtuel
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Données (à garder dans les volumes)
+data/
+output/
+*.xlsx
+*.xls
+*.pdf
+*.geojson
+*.shp
+*.shx
+*.dbf
+*.prj
+
+# Versionning
+.git/
+.gitignore
+.DS_Store
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore

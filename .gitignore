@@ -1,0 +1,115 @@
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+venv/
+env/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# ============================================
+# IDE - PhpStorm
+# ============================================
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.pydevproject
+.settings/
+*.komodoproject
+.komodotools/
+
+# ============================================
+# Docker
+# ============================================
+.docker/
+docker-compose.override.yml
+*.tar.gz
+*.tar
+
+# ============================================
+# Données et fichiers générés
+# ============================================
+# Dossiers de données (mais on garde la structure)
+data/*
+!data/.gitkeep
+output/*
+!output/.gitkeep
+
+# Fichiers temporaires
+*.tmp
+*.temp
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# Fichiers de données uploadés
+*.xlsx
+*.xls
+*.pdf
+*.csv
+*.geojson
+*.kml
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.zip
+
+# ============================================
+# Streamlit
+# ============================================
+.streamlit/secrets.toml
+.streamlit/config.toml
+
+# ============================================
+# Système
+# ============================================
+.DS_Store
+Thumbs.db
+desktop.ini
+*.bak
+*.backup
+
+# ============================================
+# Fichiers sensibles
+# ============================================
+.env
+.env.local
+.env.*.local
+secrets/
+*.pem
+*.key
+*.crt

@@ -1,0 +1,25 @@
+services:
+  geocodeur:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: geocodeur_agro
+    ports:
+      - "8501:8501"
+    volumes:
+      # Monter le code en développement pour les modifications en direct
+      - .:/app
+      # Persister les données uploadées
+      - ./data:/app/data
+      # Persister les fichiers générés
+      - ./output:/app/output
+    environment:
+      - TZ=Africa/Abidjan
+      - STREAMLIT_SERVER_MAX_UPLOAD_SIZE=200
+    restart: unless-stopped
+    networks:
+      - geocodeur_network
+
+networks:
+  geocodeur_network:
+    driver: bridge
