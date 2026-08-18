@@ -68,7 +68,7 @@ source venv/bin/activate  # Linux/Mac
 pip install -r requirements.txt
 
 # Lancer l'application
-streamlit run app.py
+streamlit run app.py --server.port=8501 --server.address=0.0.0.0
 ```
 
 ---
