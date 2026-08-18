@@ -1,10 +1,3 @@
-Voici le README.md **propre et complet** avec toutes les sections nécessaires :
-
----
-
-## 📝 `README.md` - Version finale
-
-```markdown
 # 🌍 Géocodeur Agro-Pastoral - Côte d'Ivoire
 
 [![Python](https://img.shields.io/badge/Python-3.10-blue.svg)](https://www.python.org/)
@@ -21,10 +14,12 @@ Outil de géocodage pour les pôles agro-pastoraux en Côte d'Ivoire. Il permet 
 
 - ✅ Convertir des fichiers **Excel/PDF** contenant des localités en fichiers géospatiaux
 - ✅ Détecter **automatiquement** les colonnes (nom, lat/long, UTM)
+- ✅ Utiliser le **contexte administratif** (District, Région, Département, Sous-préfecture) pour améliorer le géocodage
 - ✅ Convertir les coordonnées **DMS** (Degrés/Minutes/Secondes) en **degrés décimaux**
 - ✅ **Géocoder** par nom de localité via OpenStreetMap
 - ✅ **Visualiser** les points sur une carte interactive
 - ✅ **Exporter** en **GeoJSON**, **CSV**, **Shapefile**, **KML**
+- ✅ **Réorganiser** les colonnes de sortie dans un ordre logique
 - ✅ Faciliter la **superposition** avec les données du **SIGFU** (lotissements et permis miniers)
 
 ---
@@ -84,41 +79,78 @@ streamlit run app.py
 - Déposez un fichier **Excel (.xlsx, .xls)** ou **PDF** contenant vos données
 - Taille max : 200 MB
 
-### 2. Mapping des colonnes
-Sélectionnez les colonnes correspondant aux informations géographiques :
+---
 
-| Colonne | Description |
-|---------|-------------|
-| **Nom du lieu** | Colonne contenant les noms des localités |
-| **Latitude** | Colonne contenant les latitudes (décimal ou DMS) |
-| **Longitude** | Colonne contenant les longitudes (décimal ou DMS) |
-| **X (UTM)** | Colonne contenant les coordonnées X en mètres |
-| **Y (UTM)** | Colonne contenant les coordonnées Y en mètres |
+### 2. Mapping des colonnes
+
+#### Colonnes géographiques (obligatoire - au moins une)
+
+| Colonne         | Description                                          |
+|:----------------|:-----------------------------------------------------|
+| **Nom du lieu** | Colonne contenant les noms des localités             |
+| **Latitude**    | Colonne contenant les latitudes (décimal ou DMS)     |
+| **Longitude**   | Colonne contenant les longitudes (décimal ou DMS)    |
+| **X (UTM)**     | Colonne contenant les coordonnées X en mètres        |
+| **Y (UTM)**     | Colonne contenant les coordonnées Y en mètres        |
+
+#### Contexte administratif (optionnel - améliore la précision)
+
+| Colonne             | Description                          |
+|:--------------------|:-------------------------------------|
+| **District**        | Colonne contenant le district        |
+| **Région**          | Colonne contenant la région          |
+| **Département**     | Colonne contenant le département     |
+| **Sous-préfecture** | Colonne contenant la sous-préfecture |
+
+💡 **Astuce :** Pour les petits villages non référencés, renseigner le contexte administratif permet d'obtenir de meilleurs résultats de géocodage.
+
+---
 
 ### 3. Formats de coordonnées supportés
 
-| Format | Exemple |
-|--------|---------|
-| Degrés décimaux | `5.935111`, `-4.493972` |
-| DMS (virgule) | `5°56'6,40"N`, `4°29'38,30"W` |
-| DMS (point) | `5°56'6.40"N`, `4°29'38.30"W` |
-| UTM | `X: 209975`, `Y: 851208` |
+| Format          | Exemple                       |
+|:----------------|:------------------------------|
+| Degrés décimaux | `5.935111`, `-4.493972`       |
+| DMS (virgule)   | `5°56'6,40"N`, `4°29'38,30"W` |
+| DMS (point)     | `5°56'6.40"N`, `4°29'38.30"W` |
+| UTM             | `X: 209975`, `Y: 851208`      |
 
-### 4. Export
+---
+
+### 4. Ordre des colonnes de sortie
+
+L'outil réorganise automatiquement les colonnes dans un ordre logique :
+
+| Priorité  | Colonne                              |
+|:----------|:-------------------------------------|
+| 1         | `N°`, `N_`, `ID`, `id`, `ROW_INDEX`  |
+| 2         | `DISTRICT`, `district`               |
+| 3         | `REGION`, `region`                   |
+| 4         | `DEPARTEMENT`, `departement`         |
+| 5         | `SOUS_PREFECTURE`, `sous_prefecture` |
+| 6         | `VILLAGE`, `village`, `LOCALITE`     |
+| 7         | `latitude`                           |
+| 8         | `longitude`                          |
+| 9         | `geometry`                           |
+| 10        | Autres colonnes                      |
+
+---
+
+### 5. Export
 L'outil propose 4 formats d'export :
 
-| Format | Utilisation |
-|--------|-------------|
-| **GeoJSON** | Web, QGIS, Python, JavaScript |
-| **CSV** | Excel, analyse de données |
+| Format        | Utilisation                      |
+|:--------------|:---------------------------------|
+| **GeoJSON**   | Web, QGIS, Python, JavaScript    |
+| **CSV**       | Excel, analyse de données        |
 | **Shapefile** | QGIS, ArcGIS, SIG professionnels |
-| **KML** | Google Earth, Google Maps |
+| **KML**       | Google Earth, Google Maps        |
 
 ---
 
 ## 📁 Structure du projet
 
-```
+```text
 geocodeur-agro/
 ├── app.py                 # Application Streamlit
 ├── Dockerfile             # Image Docker
@@ -136,35 +168,36 @@ geocodeur-agro/
 
 ## 🛠 Technologies utilisées
 
-| Technologie | Version | Rôle |
-|-------------|---------|------|
-| **Python** | 3.10 | Langage de programmation |
-| **Streamlit** | 1.28 | Interface utilisateur |
-| **GeoPandas** | 0.14 | Manipulation de données géospatiales |
-| **Shapely** | 2.0 | Géométries géospatiales |
-| **PyProj** | 3.5 | Conversion de systèmes de coordonnées |
-| **Folium** | 0.15 | Visualisation cartographique |
-| **Geopy** | 2.3 | Géocodage (Nominatim/OpenStreetMap) |
-| **Docker** | Latest | Conteneurisation |
-| **SimpleKML** | 1.3 | Export KML |
+| Technologie   | Version  | Rôle                                  |
+|:--------------|:---------|:--------------------------------------|
+| **Python**    | 3.10     | Langage de programmation              |
+| **Streamlit** | 1.28     | Interface utilisateur                 |
+| **GeoPandas** | 0.14     | Manipulation de données géospatiales  |
+| **Shapely**   | 2.0      | Géométries géospatiales               |
+| **PyProj**    | 3.5      | Conversion de systèmes de coordonnées |
+| **Folium**    | 0.15     | Visualisation cartographique          |
+| **Geopy**     | 2.3      | Géocodage (Nominatim/OpenStreetMap)   |
+| **Docker**    | Latest   | Conteneurisation                      |
+| **SimpleKML** | 1.3      | Export KML                            |
 
 ---
 
 ## 📋 Exemple de données
 
+### Fichier source
 ```csv
-VILLAGE,LATITUDE,LONGITUDE
-ABOUDE DADIE,5°56'6,40"N,4°29'38,30"W
-ABOUDE VINCENT,5°53'31,20"N,4°36'3,60"W
-KOUADJAKRO,6°0'11,20"N,4°31'4,00"W
+N°,VILLAGE,DEPARTEMENT,REGION,LATITUDE,LONGITUDE
+3284,ABOUDE DADIE,AGBOVILLE,AGNEBY-TIASSA,5°56'6,40"N,4°29'38,30"W
+3285,ABOUDE VINCENT,AGBOVILLE,AGNEBY-TIASSA,5°53'31,20"N,4°36'3,60"W
+3286,KOUADJAKRO,AGBOVILLE,AGNEBY-TIASSA,6°0'11,20"N,4°31'4,00"W
 ```
 
-**Sortie :**
+### Fichier géocodé (sortie)
 ```csv
-VILLAGE,LATITUDE,LONGITUDE
-ABOUDE DADIE,5.935111,-4.493972
-ABOUDE VINCENT,5.892000,-4.601000
-KOUADJAKRO,6.003111,-4.517778
+N°,VILLAGE,DEPARTEMENT,REGION,latitude,longitude
+3284,ABOUDE DADIE,AGBOVILLE,AGNEBY-TIASSA,5.935111,-4.493972
+3285,ABOUDE VINCENT,AGBOVILLE,AGNEBY-TIASSA,5.892000,-4.601000
+3286,KOUADJAKRO,AGBOVILLE,AGNEBY-TIASSA,6.003111,-4.517778
 ```
 
 ---
@@ -201,6 +234,11 @@ docker compose up -d
 
 ### Erreur de mémoire (Windows/WSL2)
 - Augmenter la RAM dans Docker Desktop : Settings → Resources → Memory (8 GB recommandé)
+
+### Géocodage par nom qui échoue
+- Utiliser les colonnes de **contexte administratif** (Région, Département, Sous-préfecture)
+- Vérifier que les noms sont correctement orthographiés
+- Utiliser les coordonnées si disponibles
 
 ---
 
@@ -252,25 +290,3 @@ Pour toute question ou problème :
 
 **Fait avec ❤️ en Côte d'Ivoire**
 ```
-
----
-
-## 📋 Sections du README
-
-| Section | Contenu |
-|---------|---------|
-| 🔷 **Badges** | Technologies utilisées |
-| 📋 **Description** | Présentation de l'outil |
-| 🚀 **Installation** | Docker, Docker Compose, Local |
-| 📊 **Utilisation** | Upload, Mapping, Formats, Export |
-| 📁 **Structure** | Arborescence du projet |
-| 🛠 **Technologies** | Liste des technologies |
-| 📋 **Exemple** | Exemple de données |
-| 🐛 **Dépannage** | Problèmes courants et solutions |
-| 🔧 **Variables** | Variables d'environnement |
-| 📝 **License** | MIT |
-| 👤 **Auteurs** | Informations de contact |
-| 🙏 **Remerciements** | Crédits |
-| 📞 **Support** | Contact |
-
----

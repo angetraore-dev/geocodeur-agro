@@ -43,45 +43,6 @@ except PermissionError:
     DATA_DIR.mkdir(exist_ok=True)
     OUTPUT_DIR.mkdir(exist_ok=True)
 
-# ============ Fonction DE TELECHARGEMENT DANS LE FORMAT KML =============
-def export_to_kml(gdf, filename):
-    """
-    Exporte un GeoDataFrame vers KML.
-
-    Args:
-        gdf: GeoDataFrame avec géométrie
-        filename: Nom du fichier KML
-
-    Returns:
-        bytes: Contenu du fichier KML
-    """
-    kml = simplekml.Kml()
-
-    for _, row in gdf.iterrows():
-        point = kml.newpoint()
-
-        # Nom du lieu
-        nom = row.get('VILLAGE', row.get('village', row.get('LOCALITE', 'Sans nom')))
-        point.name = str(nom)
-
-        # Coordonnées (attention: KML utilise (lon, lat, altitude))
-        point.coords = [(row.geometry.x, row.geometry.y)]
-
-        # Ajouter des infos dans la description
-        desc = []
-        for col in ['VILLAGE', 'DEPARTEMENT', 'REGION', 'COMMUNE']:
-            if col in row and pd.notna(row[col]):
-                desc.append(f"{col}: {row[col]}")
-
-        if desc:
-            point.description = "\n".join(desc)
-
-        # Style du point
-        point.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/pushpin/red-pushpin.png'
-        point.style.iconstyle.scale = 1.0
-
-    # Retourner le contenu KML en bytes
-    return kml.kml().encode('utf-8')
 
 # ============ FONCTIONS DE CONVERSION ============
 def dms_to_decimal(dms_str):
@@ -156,16 +117,54 @@ def convert_timestamps_to_string(df):
     return df_export
 
 
-def filter_output_columns(df, selected_columns):
-    """Filtre les colonnes pour la sortie."""
+def order_output_columns(df):
+    """
+    Réorganise les colonnes dans un ordre logique :
+    N° → District → Région → Département → Sous-préfecture → Village → latitude → longitude → autres
+    """
+    priority_cols = [
+        'N°', 'N_', 'ID', 'id', 'ROW_INDEX',
+        'DISTRICT', 'district',
+        'REGION', 'region',
+        'DEPARTEMENT', 'departement',
+        'SOUS_PREFECTURE', 'sous_prefecture', 'SOUS-PREFECTURE',
+        'VILLAGE', 'village', 'LOCALITE', 'localite',
+        'latitude', 'longitude',
+        'geometry'
+    ]
+
+    existing_cols = df.columns.tolist()
+
+    ordered_cols = []
+    for col in priority_cols:
+        if col in existing_cols and col not in ordered_cols:
+            ordered_cols.append(col)
+
+    for col in existing_cols:
+        if col not in ordered_cols:
+            ordered_cols.append(col)
+
+    return df[ordered_cols]
+
+
+def filter_output_columns(df, selected_columns, context_columns):
+    """Filtre les colonnes pour la sortie avec ordre personnalisé."""
     keep_cols = []
 
+    # Ajouter les colonnes sélectionnées
     for col in selected_columns:
         if col and col != "Aucune" and col in df.columns:
             keep_cols.append(col)
 
+    # Ajouter les colonnes de contexte
+    for col in context_columns:
+        if col and col != "Aucune" and col in df.columns:
+            keep_cols.append(col)
+
+    # Ajouter les colonnes d'identification
     id_cols = ['N°', 'N_', 'ID', 'id', 'VILLAGE', 'village', 'LOCALITE', 'localite',
-               'COMMUNE', 'commune', 'DEPARTEMENT', 'departement', 'REGION', 'region']
+               'COMMUNE', 'commune', 'DEPARTEMENT', 'departement', 'REGION', 'region',
+               'DISTRICT', 'district', 'SOUS_PREFECTURE', 'sous_prefecture']
     for col in id_cols:
         if col in df.columns and col not in keep_cols:
             keep_cols.append(col)
@@ -183,7 +182,9 @@ def filter_output_columns(df, selected_columns):
         keep_cols.append('ROW_INDEX')
 
     final_cols = [col for col in keep_cols if col in df.columns]
-    return df[final_cols] if final_cols else df
+    df_filtered = df[final_cols] if final_cols else df
+
+    return order_output_columns(df_filtered)
 
 
 def save_uploaded_file(uploaded_file):
@@ -216,14 +217,28 @@ def convert_utm_to_latlon(x, y, zone=30):
 
 def detect_column_mapping(df):
     """Détection automatique des colonnes."""
-    suggestions = {'lieu': None, 'lat': None, 'lon': None, 'x': None, 'y': None}
+    suggestions = {
+        'lieu': None,
+        'lat': None,
+        'lon': None,
+        'x': None,
+        'y': None,
+        'district': None,
+        'region': None,
+        'departement': None,
+        'sous_prefecture': None
+    }
 
     keywords = {
-        'lieu': ['nom', 'localité', 'village', 'zone', 'site', 'lieu', 'commune', 'departement'],
+        'lieu': ['nom', 'localité', 'village', 'zone', 'site', 'lieu', 'commune'],
         'lat': ['lat', 'latitude', 'y', 'northing'],
         'lon': ['lon', 'long', 'longitude', 'x', 'easting'],
         'x': ['x', 'easting', 'est', 'utm_x', 'coord_x'],
-        'y': ['y', 'northing', 'north', 'utm_y', 'coord_y']
+        'y': ['y', 'northing', 'north', 'utm_y', 'coord_y'],
+        'district': ['district'],
+        'region': ['region', 'région'],
+        'departement': ['departement', 'département'],
+        'sous_prefecture': ['sous_prefecture', 'sous-préfecture', 'sous prefecture']
     }
 
     for col in df.columns:
@@ -237,33 +252,57 @@ def detect_column_mapping(df):
     return suggestions
 
 
-def geocode_location(lieu, cache={}):
-    """Géocode un lieu avec cache."""
+def geocode_location_with_context(lieu, district=None, region=None, departement=None, sous_prefecture=None, cache={}):
+    """Géocode un lieu avec contexte administratif pour améliorer la précision."""
     if not lieu or pd.isna(lieu):
         return None, None
 
     lieu_key = str(lieu).strip()
-    if lieu_key in cache:
-        return cache[lieu_key]
+
+    search_parts = [lieu_key]
+
+    if sous_prefecture and pd.notna(sous_prefecture) and str(sous_prefecture).strip():
+        search_parts.append(str(sous_prefecture).strip())
+    if departement and pd.notna(departement) and str(departement).strip():
+        search_parts.append(str(departement).strip())
+    if region and pd.notna(region) and str(region).strip():
+        search_parts.append(str(region).strip())
+    if district and pd.notna(district) and str(district).strip():
+        search_parts.append(str(district).strip())
+
+    search_parts.append("Côte d'Ivoire")
+    search_str = ", ".join(search_parts)
+
+    cache_key = "|".join(search_parts)
+    if cache_key in cache:
+        return cache[cache_key]
 
     try:
         geolocator = Nominatim(user_agent="agro_ivoire_v1")
         geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
 
-        location = geocode(f"{lieu_key}, Côte d'Ivoire")
+        location = geocode(search_str)
+
+        if not location and len(search_parts) > 2:
+            fallback_parts = [lieu_key]
+            if departement and pd.notna(departement):
+                fallback_parts.append(str(departement).strip())
+            fallback_parts.append("Côte d'Ivoire")
+            location = geocode(", ".join(fallback_parts))
+
         if not location:
-            location = geocode(lieu_key)
+            location = geocode(f"{lieu_key}, Côte d'Ivoire")
 
         if location:
             result = (location.latitude, location.longitude)
-            cache[lieu_key] = result
+            cache[cache_key] = result
             return result
         else:
-            cache[lieu_key] = (None, None)
+            cache[cache_key] = (None, None)
             return None, None
     except Exception as e:
-        logger.error(f"Erreur géocodage pour '{lieu_key}': {str(e)}")
-        cache[lieu_key] = (None, None)
+        logger.error(f"Erreur géocodage avec contexte: {str(e)}")
+        cache[cache_key] = (None, None)
         return None, None
 
 
@@ -306,6 +345,31 @@ def create_map(gdf_valid):
         ).add_to(m)
 
     return m
+
+
+def export_to_kml(gdf, filename):
+    """Exporte un GeoDataFrame vers KML."""
+    kml = simplekml.Kml()
+
+    for _, row in gdf.iterrows():
+        point = kml.newpoint()
+
+        nom = row.get('VILLAGE', row.get('village', row.get('LOCALITE', 'Sans nom')))
+        point.name = str(nom)
+        point.coords = [(row.geometry.x, row.geometry.y)]
+
+        desc = []
+        for col in ['VILLAGE', 'DEPARTEMENT', 'REGION', 'COMMUNE', 'DISTRICT', 'SOUS_PREFECTURE']:
+            if col in row and pd.notna(row[col]):
+                desc.append(f"{col}: {row[col]}")
+
+        if desc:
+            point.description = "\n".join(desc)
+
+        point.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/pushpin/red-pushpin.png'
+        point.style.iconstyle.scale = 1.0
+
+    return kml.kml().encode('utf-8')
 
 
 # ============ INTERFACE PRINCIPALE ============
@@ -361,7 +425,6 @@ if uploaded_file is not None:
     if saved_path:
         st.success(f"✅ Fichier sauvegardé : {saved_path}")
 
-    # Lecture du fichier
     with st.spinner("📖 Lecture du fichier..."):
         try:
             if uploaded_file.name.endswith('.pdf'):
@@ -429,6 +492,42 @@ if uploaded_file is not None:
             options=["Aucune"] + df.columns.tolist(),
             index=(df.columns.tolist().index(suggestions['y']) + 1) if suggestions['y'] in df.columns else 0,
             help="Colonne contenant les coordonnées Y en mètres (UTM)"
+        )
+
+    # ============ CONTEXTE ADMINISTRATIF (OPTIONNEL) ============
+    st.subheader("🏛️ Contexte administratif (optionnel)")
+    st.markdown("*Ces colonnes aident à améliorer la précision du géocodage*")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        colonne_district = st.selectbox(
+            "🏛️ **District**",
+            options=["Aucune"] + df.columns.tolist(),
+            index=(df.columns.tolist().index(suggestions['district']) + 1) if suggestions['district'] in df.columns else 0,
+            help="Colonne contenant le district (ex: DISTRICT)"
+        )
+
+        colonne_region = st.selectbox(
+            "🏛️ **Région**",
+            options=["Aucune"] + df.columns.tolist(),
+            index=(df.columns.tolist().index(suggestions['region']) + 1) if suggestions['region'] in df.columns else 0,
+            help="Colonne contenant la région (ex: REGION)"
+        )
+
+    with col2:
+        colonne_departement = st.selectbox(
+            "🏛️ **Département**",
+            options=["Aucune"] + df.columns.tolist(),
+            index=(df.columns.tolist().index(suggestions['departement']) + 1) if suggestions['departement'] in df.columns else 0,
+            help="Colonne contenant le département (ex: DEPARTEMENT)"
+        )
+
+        colonne_sous_prefecture = st.selectbox(
+            "🏛️ **Sous-préfecture**",
+            options=["Aucune"] + df.columns.tolist(),
+            index=(df.columns.tolist().index(suggestions['sous_prefecture']) + 1) if suggestions['sous_prefecture'] in df.columns else 0,
+            help="Colonne contenant la sous-préfecture (ex: SOUS PREFECTURE)"
         )
 
     # ============ OPTIONS ============
@@ -518,12 +617,26 @@ if uploaded_file is not None:
                     except (ValueError, TypeError) as e:
                         errors.append(f"Ligne {index+1}: Erreur UTM")
 
-                # Cas 3 : Géocodage par nom
+                # Cas 3 : Géocodage par nom avec contexte administratif
                 if point is None and has_lieu:
                     lieu = row[colonne_lieu]
                     if pd.notna(lieu) and str(lieu).strip():
                         status_text.text(f"🔍 Géocodage de: {lieu} ({index+1}/{total_rows})")
-                        lat, lon = geocode_location(str(lieu), cache_geocode)
+
+                        district = row[colonne_district] if colonne_district != "Aucune" else None
+                        region = row[colonne_region] if colonne_region != "Aucune" else None
+                        departement = row[colonne_departement] if colonne_departement != "Aucune" else None
+                        sous_prefecture = row[colonne_sous_prefecture] if colonne_sous_prefecture != "Aucune" else None
+
+                        lat, lon = geocode_location_with_context(
+                            str(lieu),
+                            district,
+                            region,
+                            departement,
+                            sous_prefecture,
+                            cache_geocode
+                        )
+
                         if lat is not None and lon is not None:
                             point = Point(lon, lat)
                             status = f"Géocodé: {lieu} → {lat:.6f}, {lon:.6f}"
@@ -593,7 +706,8 @@ if uploaded_file is not None:
 
                     gdf_export = convert_timestamps_to_string(gdf_valid)
                     selected_cols = [colonne_lieu, colonne_lat, colonne_lon, colonne_x, colonne_y]
-                    gdf_filtered = filter_output_columns(gdf_export, selected_cols)
+                    context_cols = [colonne_district, colonne_region, colonne_departement, colonne_sous_prefecture]
+                    gdf_filtered = filter_output_columns(gdf_export, selected_cols, context_cols)
 
                     if 'latitude' not in gdf_filtered.columns:
                         gdf_filtered['latitude'] = gdf_filtered.geometry.y
@@ -658,7 +772,6 @@ if uploaded_file is not None:
                                 if col in gdf_kml.columns:
                                     gdf_kml = gdf_kml.drop(columns=[col])
 
-                            # Utiliser la fonction export_to_kml
                             kml_bytes = export_to_kml(gdf_kml, export_filename)
 
                             st.download_button(
